@@ -52,13 +52,12 @@ async fn test_websocket() {
     .unwrap();
 
     for i in 0..=254 {
-        ws.send_all(vec![0, 1, 2, 3,i, 255]).await.unwrap();
+        ws.send_all(vec![0, 1, 2, 3, i, 255]).await.unwrap();
     }
 
     rx.await.unwrap();
-    console_log!("send ok");
+    console_log!("finish");
 }
-
 
 #[wasm_bindgen_test]
 async fn test_websocket2() {
@@ -92,17 +91,19 @@ async fn test_websocket2() {
         },
         (),
     )
-        .await
-        .unwrap();
+    .await
+    .unwrap();
 
     ws.send_all(vec![0, 1, 2, 3, 255]).await.unwrap();
 
-    while let Some(i)= rx.next().await {
+    while let Some(i) = rx.next().await {
         if !ws.is_disconnect() {
             ws.send_ref(&i32::to_be_bytes(i)).await.unwrap();
             ws.send_all_ref(&[255]).await.unwrap();
-        }else { break; }
+        } else {
+            break;
+        }
     }
 
-    console_log!("send ok");
+    console_log!("finish");
 }

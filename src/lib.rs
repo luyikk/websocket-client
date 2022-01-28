@@ -122,7 +122,7 @@ pub trait IWebSocketClient {
     async fn send_all_ref<'a>(&'a self, buff: &'a [u8]) -> Result<()>;
     async fn flush(&mut self) -> Result<()>;
     async fn disconnect(&self) -> Result<()>;
-    fn is_disconnect(&self)->bool;
+    fn is_disconnect(&self) -> bool;
 }
 
 #[async_trait::async_trait]
@@ -179,8 +179,6 @@ impl IWebSocketClient for Actor<WebSocketClient> {
     }
     #[inline]
     fn is_disconnect(&self) -> bool {
-        unsafe {
-            self.deref_inner().disconnect
-        }
+        unsafe { self.deref_inner().disconnect }
     }
 }

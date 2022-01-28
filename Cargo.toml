@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2018"
 authors = ["yi lu <luyikk@126.com>"]
 license = "MIT/Apache-2.0"
+repository = "https://github.com/luyikk/websocket-client"
+documentation = "https://docs.rs/websocket-client"
+description = "Asynchronous websocket client."
+keywords = ["websocket", "io", "web","client"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

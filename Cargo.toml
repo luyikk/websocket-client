@@ -1,5 +1,5 @@
 [package]
-name = "websocket-client"
+name = "websocket-client-async"
 version = "0.1.0"
 edition = "2018"
 authors = ["yi lu <luyikk@126.com>"]

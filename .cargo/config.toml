@@ -5,4 +5,4 @@ target = "wasm32-unknown-unknown"
 runner = "wasm-server-runner"
 
 [alias]
-run_echo_server="run --package websocket-client --example websocket_echo_server --target x86_64-pc-windows-msvc --features build_axamples_server"
+run_echo_server="run --package websocket-client-async --example websocket_echo_server --target x86_64-pc-windows-msvc --features build_axamples_server"

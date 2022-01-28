@@ -5,7 +5,7 @@
 use futures_util::{AsyncBufReadExt, StreamExt};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_test::*;
-use websocket_client::IWebSocketClient;
+use websocket_client_async::IWebSocketClient;
 
 #[wasm_bindgen]
 extern "C" {
@@ -30,7 +30,7 @@ async fn test_websocket() {
 
     let (tx, rx) = futures_channel::oneshot::channel();
 
-    let ws = websocket_client::WebSocketClient::connect(
+    let ws = websocket_client_async::WebSocketClient::connect(
         "127.0.0.1:8888",
         |_, ws, mut reader| async move {
             console_log!("connect websocket server ok");
@@ -65,7 +65,7 @@ async fn test_websocket2() {
 
     let (mut tx, mut rx) = futures_channel::mpsc::channel(1);
 
-    let ws = websocket_client::WebSocketClient::connect(
+    let ws = websocket_client_async::WebSocketClient::connect(
         "127.0.0.1:8888",
         |_, ws, mut reader| async move {
             console_log!("connect websocket server ok");

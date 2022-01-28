@@ -33,7 +33,7 @@ futures-util = { version = "0.3", features = ["io","sink", "std"], default-featu
 
 cfg-if="1.0"
 tokio={version="1",features=["full"],optional = true}
-tokio-tungstenite = {version="*",optional = true}
+tokio-tungstenite = {version="0.16",optional = true}
 env_logger = {version="0.9",optional = true}
 
 [dependencies.web-sys]

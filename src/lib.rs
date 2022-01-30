@@ -1,6 +1,6 @@
 mod websocket_io;
 
-use crate::websocket_io::{WebSocketReader, WebSocketWriter, WebsocketIO};
+use crate::websocket_io::{WebSocketReader, WebSocketInner, WebsocketIO};
 use anyhow::{bail, ensure, Error, Result};
 use aqueue::Actor;
 use futures_util::AsyncWriteExt;
@@ -10,8 +10,8 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 pub struct WebSocketClient {
-    disconnect: bool,
-    websocket_writer: WebSocketWriter,
+    inner: WebSocketInner,
+    disconnect: bool
 }
 
 impl WebSocketClient {
@@ -41,7 +41,7 @@ impl WebSocketClient {
         let (reader, write) = ws.split();
         let client = Arc::new(Actor::new(WebSocketClient {
             disconnect: false,
-            websocket_writer: write,
+            inner: write,
         }));
         let read_client = client.clone();
         wasm_bindgen_futures::spawn_local(async move {
@@ -71,7 +71,7 @@ impl WebSocketClient {
     #[inline]
     async fn close(&mut self) -> Result<()> {
         if !self.disconnect {
-            match self.websocket_writer.close().await {
+            match self.inner.ws.close() {
                 Ok(_) => {
                     self.disconnect = true;
                 }
@@ -84,7 +84,7 @@ impl WebSocketClient {
     #[inline]
     async fn send<'a>(&'a mut self, buff: &'a [u8]) -> Result<usize> {
         if !self.disconnect {
-            Ok(self.websocket_writer.write(buff).await?)
+            Ok(self.inner.write(buff).await?)
         } else {
             bail!("Send Error,Disconnect")
         }
@@ -93,7 +93,7 @@ impl WebSocketClient {
     #[inline]
     async fn send_all<'a>(&'a mut self, buff: &'a [u8]) -> Result<()> {
         if !self.disconnect {
-            Ok(self.websocket_writer.write_all(buff).await?)
+            Ok(self.inner.write_all(buff).await?)
         } else {
             bail!("Send Error,Disconnect")
         }
@@ -102,7 +102,7 @@ impl WebSocketClient {
     #[inline]
     async fn flush(&mut self) -> Result<()> {
         if !self.disconnect {
-            Ok(self.websocket_writer.flush().await?)
+            Ok(self.inner.flush().await?)
         } else {
             bail!("Send Error,Disconnect")
         }
@@ -129,7 +129,7 @@ pub trait IWebSocketClient {
 impl IWebSocketClient for Actor<WebSocketClient> {
     #[inline]
     fn get_addr(&self) -> String {
-        unsafe { self.deref_inner().websocket_writer.ws_url.clone() }
+        unsafe { self.deref_inner().inner.ws_url.clone() }
     }
     #[inline]
     async fn send<B: Deref<Target = [u8]> + Send + Sync + 'static>(

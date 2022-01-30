@@ -1,8 +1,9 @@
 use std::cmp::Ordering;
+use std::io::ErrorKind;
 use std::pin::Pin;
 use std::task::Poll;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use futures_channel::mpsc::Receiver;
 use futures_core::stream::Stream;
 use futures_io::AsyncBufRead;
@@ -14,7 +15,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{ErrorEvent, MessageEvent, WebSocket};
 
-pub struct WebsocketIO {
+pub(crate) struct WebsocketIO {
     pub(crate) ws: WebSocket,
     pub(crate) reader: WebSocketReader,
     pub(crate) ws_url: String,
@@ -24,13 +25,13 @@ pub struct WebSocketReader {
     read_rx: Receiver<Uint8Array>,
     remaining: Vec<u8>,
 }
-pub struct WebSocketWriter {
+pub(crate) struct WebSocketInner {
     pub(crate) ws: WebSocket,
     pub(crate) ws_url: String,
 }
 
-unsafe impl Send for WebSocketWriter {}
-unsafe impl Sync for WebSocketWriter {}
+unsafe impl Send for WebSocketInner {}
+unsafe impl Sync for WebSocketInner {}
 
 impl WebsocketIO {
     pub async fn new(addr: &str) -> Result<WebsocketIO> {
@@ -83,7 +84,6 @@ impl WebsocketIO {
             }
             else {
                 log::error!("message event, received Unknown: {:?}", e.data());
-                return
             }
         }) as Box<dyn Fn(MessageEvent)>);
 
@@ -91,7 +91,7 @@ impl WebsocketIO {
         let onerror_callback = Closure::wrap(Box::new(move |e: ErrorEvent| {
             log::error!("error event: {:?}", e);
             if !error_tx.is_closed() {
-                error_tx.start_send(0).unwrap();
+                let _= error_tx.start_send(0);
                 error_tx.close_channel();
             }
         }) as Box<dyn FnMut(ErrorEvent)>);
@@ -99,7 +99,7 @@ impl WebsocketIO {
         let onopen_callback =
             Closure::wrap(Box::new(move |_| {
                 if !open_tx.is_closed() {
-                    open_tx.start_send(1).unwrap();
+                    let _= open_tx.start_send(1);
                     open_tx.close_channel();
                 }
             })
@@ -135,9 +135,9 @@ impl WebsocketIO {
         }
     }
 
-    pub fn split(self) -> (WebSocketReader, WebSocketWriter) {
+    pub fn split(self) -> (WebSocketReader, WebSocketInner) {
         let WebsocketIO { ws, reader, ws_url } = self;
-        (reader, WebSocketWriter { ws, ws_url })
+        (reader, WebSocketInner { ws, ws_url })
     }
 }
 
@@ -233,15 +233,21 @@ impl AsyncBufRead for WebSocketReader {
         self.remaining.drain(0..amt);
     }
 }
-impl AsyncWrite for WebSocketWriter {
+
+impl AsyncWrite for WebSocketInner {
     fn poll_write(
         self: std::pin::Pin<&mut Self>,
         _: &mut std::task::Context<'_>,
         buf: &[u8],
     ) -> Poll<std::io::Result<usize>> {
-        self.ws.send_with_u8_array(buf).unwrap();
-
-        Poll::Ready(Ok(buf.len()))
+        match self.ws.send_with_u8_array(buf){
+            Ok(_)=>{
+                Poll::Ready(Ok(buf.len()))
+            },
+            Err(err)=>{
+                Poll::Ready(Err(std::io::Error::new(ErrorKind::Other,anyhow!("{:?}",err))))
+            }
+        }
     }
 
     fn poll_flush(
@@ -255,7 +261,13 @@ impl AsyncWrite for WebSocketWriter {
         self: std::pin::Pin<&mut Self>,
         _: &mut std::task::Context<'_>,
     ) -> Poll<std::io::Result<()>> {
-        self.ws.close().unwrap();
-        Poll::Ready(Ok(()))
+        match self.ws.close(){
+            Ok(_)=>{
+                Poll::Ready(Ok(()))
+            },
+            Err(err)=>{
+                Poll::Ready(Err(std::io::Error::new(ErrorKind::Other,anyhow!("{:?}",err))))
+            }
+        }
     }
 }

@@ -94,6 +94,7 @@ async fn test_websocket2() {
     .await
     .unwrap();
 
+    console_log!("1111");
     ws.send_all(vec![0, 1, 2, 3, 255]).await.unwrap();
 
     while let Some(i) = rx.next().await {

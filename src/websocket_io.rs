@@ -2,12 +2,13 @@ use std::cmp::Ordering;
 use std::pin::Pin;
 use std::task::Poll;
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use futures_channel::mpsc::Receiver;
 use futures_core::stream::Stream;
 use futures_io::AsyncBufRead;
 use futures_io::AsyncRead;
 use futures_io::AsyncWrite;
+use futures_util::StreamExt;
 use js_sys::Uint8Array;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -47,42 +48,62 @@ impl WebsocketIO {
             }
         };
 
+        ws.set_binary_type(web_sys::BinaryType::Arraybuffer);
+
         let buffer = 4;
-        let (open_tx, open_rx) = futures_channel::oneshot::channel();
+        let (mut open_tx, mut open_rx) = futures_channel::mpsc::channel(1);
         let (read_tx, read_rx) = futures_channel::mpsc::channel(buffer);
 
         let onmessage_callback = Closure::wrap(Box::new(move |e: MessageEvent| {
             let mut read_tx = read_tx.clone();
-            let blob = match e.data().dyn_into::<web_sys::Blob>() {
-                Ok(blob) => blob,
-                _ => return,
-            };
-
-            let fr = web_sys::FileReader::new().expect("web_sys::FileReader::new() fail");
-            let fr_c = fr.clone();
-            let file_reader_load_end = Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
-                let array =
-                    Uint8Array::new(&fr_c.result().expect("web_sys::FileReader result() err"));
+            if let Ok(abuf) = e.data().dyn_into::<js_sys::ArrayBuffer>() {
+                let array = js_sys::Uint8Array::new(&abuf);
                 if !read_tx.is_closed() {
                     if let Err(err) = read_tx.start_send(array) {
                         log::error!("start_send error: {:?}", err);
                     }
                 }
-            })
-                as Box<dyn FnMut(web_sys::ProgressEvent)>);
-            fr.set_onloadend(Some(file_reader_load_end.as_ref().unchecked_ref()));
-            file_reader_load_end.forget();
-
-            fr.read_as_array_buffer(&blob).expect("blob not readable");
+            } else if let Ok(blob) = e.data().dyn_into::<web_sys::Blob>() {
+                let fr = web_sys::FileReader::new().expect("web_sys::FileReader::new() fail");
+                let fr_c = fr.clone();
+                let file_reader_load_end =
+                    Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
+                        let array = Uint8Array::new(
+                            &fr_c.result().expect("web_sys::FileReader result() err"),
+                        );
+                        if !read_tx.is_closed() {
+                            if let Err(err) = read_tx.start_send(array) {
+                                log::error!("start_send error: {:?}", err);
+                            }
+                        }
+                    }) as Box<dyn FnMut(web_sys::ProgressEvent)>);
+                fr.set_onloadend(Some(file_reader_load_end.as_ref().unchecked_ref()));
+                file_reader_load_end.forget();
+                fr.read_as_array_buffer(&blob).expect("blob not readable");
+            }
+            else {
+                log::error!("message event, received Unknown: {:?}", e.data());
+                return
+            }
         }) as Box<dyn Fn(MessageEvent)>);
 
-        let onerror_callback =
-            Closure::wrap(Box::new(move |_: ErrorEvent| {}) as Box<dyn FnMut(ErrorEvent)>);
+        let mut error_tx = open_tx.clone();
+        let onerror_callback = Closure::wrap(Box::new(move |e: ErrorEvent| {
+            log::error!("error event: {:?}", e);
+            if !error_tx.is_closed() {
+                error_tx.start_send(0).unwrap();
+                error_tx.close_channel();
+            }
+        }) as Box<dyn FnMut(ErrorEvent)>);
 
-        let mut open_tx = Some(open_tx);
         let onopen_callback =
-            Closure::wrap(Box::new(move |_| open_tx.take().unwrap().send(()).unwrap())
-                as Box<dyn FnMut(JsValue)>);
+            Closure::wrap(Box::new(move |_| {
+                if !open_tx.is_closed() {
+                    open_tx.start_send(1).unwrap();
+                    open_tx.close_channel();
+                }
+            })
+            as Box<dyn FnMut(JsValue)>);
 
         ws.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
         onmessage_callback.forget();
@@ -98,14 +119,20 @@ impl WebsocketIO {
             remaining: Vec::new(),
         };
 
-        open_rx.await?;
-
-        let ws_io = WebsocketIO {
-            ws,
-            reader,
-            ws_url: url,
-        };
-        Ok(ws_io)
+        if  open_rx.next().await.context("open_rx is none")? ==1 {
+            open_rx.close();
+            drop(open_rx);
+            let ws_io = WebsocketIO {
+                ws,
+                reader,
+                ws_url: url,
+            };
+            Ok(ws_io)
+        }else{
+            open_rx.close();
+            drop(open_rx);
+            bail!("connect to:{} fail",url)
+        }
     }
 
     pub fn split(self) -> (WebSocketReader, WebSocketWriter) {

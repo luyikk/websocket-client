@@ -3,6 +3,7 @@
 #![cfg(target_arch = "wasm32")]
 
 use futures_util::{AsyncBufReadExt, StreamExt};
+use log::Level;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_test::*;
 use websocket_client_async::IWebSocketClient;
@@ -26,10 +27,8 @@ fn pass() {
 
 #[wasm_bindgen_test]
 async fn test_websocket() {
-    wasm_logger::init(wasm_logger::Config::default());
-
+    wasm_logger::init(wasm_logger::Config::new(Level::Trace));
     let (tx, rx) = futures_channel::oneshot::channel();
-
     let ws = websocket_client_async::WebSocketClient::connect(
         "127.0.0.1:8888",
         |_, ws, mut reader| async move {
@@ -61,10 +60,8 @@ async fn test_websocket() {
 
 #[wasm_bindgen_test]
 async fn test_websocket2() {
-    wasm_logger::init(wasm_logger::Config::default());
-
+    wasm_logger::init(wasm_logger::Config::new(Level::Trace));
     let (mut tx, mut rx) = futures_channel::mpsc::channel(1);
-
     let ws = websocket_client_async::WebSocketClient::connect(
         "127.0.0.1:8888",
         |_, ws, mut reader| async move {
@@ -94,7 +91,6 @@ async fn test_websocket2() {
     .await
     .unwrap();
 
-    console_log!("1111");
     ws.send_all(vec![0, 1, 2, 3, 255]).await.unwrap();
 
     while let Some(i) = rx.next().await {

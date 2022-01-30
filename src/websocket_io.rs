@@ -34,13 +34,16 @@ unsafe impl Send for WebSocketInner {}
 unsafe impl Sync for WebSocketInner {}
 
 impl WebsocketIO {
+    #[inline]
     pub async fn new(addr: &str) -> Result<WebsocketIO> {
         WebsocketIO::new_inner(format!("ws://{}", addr)).await
     }
+    #[inline]
     pub async fn new_wss(addr: &str) -> Result<WebsocketIO> {
         WebsocketIO::new_inner(format!("wss://{}", addr)).await
     }
 
+    #[inline]
     async fn new_inner(url: String) -> Result<WebsocketIO> {
         let ws = {
             match WebSocket::new(&url) {
@@ -135,6 +138,7 @@ impl WebsocketIO {
         }
     }
 
+    #[inline]
     pub fn split(self) -> (WebSocketReader, WebSocketInner) {
         let WebsocketIO { ws, reader, ws_url } = self;
         (reader, WebSocketInner { ws, ws_url })
@@ -142,6 +146,7 @@ impl WebsocketIO {
 }
 
 impl WebSocketReader {
+    #[inline]
     fn write_remaining(&mut self, buf: &mut [u8]) -> usize {
         match self.remaining.len().cmp(&buf.len()) {
             Ordering::Less => {
@@ -166,6 +171,7 @@ impl WebSocketReader {
 }
 
 impl AsyncRead for WebSocketReader {
+    #[inline]
     fn poll_read(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
@@ -203,6 +209,7 @@ impl AsyncRead for WebSocketReader {
     }
 }
 impl AsyncBufRead for WebSocketReader {
+    #[inline]
     fn poll_fill_buf(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
@@ -224,7 +231,7 @@ impl AsyncBufRead for WebSocketReader {
         }
         Poll::Ready(Ok(self.get_mut().remaining.as_slice()))
     }
-
+    #[inline]
     fn consume(mut self: std::pin::Pin<&mut Self>, amt: usize) {
         if self.remaining.len() == amt {
             self.remaining.clear();
@@ -235,6 +242,7 @@ impl AsyncBufRead for WebSocketReader {
 }
 
 impl AsyncWrite for WebSocketInner {
+    #[inline]
     fn poll_write(
         self: std::pin::Pin<&mut Self>,
         _: &mut std::task::Context<'_>,
@@ -249,14 +257,14 @@ impl AsyncWrite for WebSocketInner {
             }
         }
     }
-
+    #[inline]
     fn poll_flush(
         self: std::pin::Pin<&mut Self>,
         _: &mut std::task::Context<'_>,
     ) -> Poll<std::io::Result<()>> {
         Poll::Ready(Ok(()))
     }
-
+    #[inline]
     fn poll_close(
         self: std::pin::Pin<&mut Self>,
         _: &mut std::task::Context<'_>,

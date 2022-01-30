@@ -15,6 +15,7 @@ pub struct WebSocketClient {
 }
 
 impl WebSocketClient {
+    #[inline]
     pub async fn connect<F: Future<Output = Result<bool>> + 'static, A: Send + 'static>(
         addr: &str,
         input: impl FnOnce(A, Arc<Actor<Self>>, WebSocketReader) -> F + Send + 'static,
@@ -24,6 +25,7 @@ impl WebSocketClient {
         Self::init(input, token, ws)
     }
 
+    #[inline]
     pub async fn connect_wss<F: Future<Output = Result<bool>> + 'static, A: Send + 'static>(
         addr: &str,
         input: impl FnOnce(A, Arc<Actor<Self>>, WebSocketReader) -> F + Send + 'static,
@@ -33,6 +35,7 @@ impl WebSocketClient {
         Self::init(input, token, ws)
     }
 
+    #[inline]
     fn init<F: Future<Output = Result<bool>> + 'static, A: Send + 'static>(
         input: impl FnOnce(A, Arc<Actor<WebSocketClient>>, WebSocketReader) -> F + Send + 'static,
         token: A,

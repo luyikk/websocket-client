@@ -1,7 +1,7 @@
 mod websocket_io;
 
 use crate::websocket_io::{WebSocketReader, WebSocketInner, WebsocketIO};
-use anyhow::{bail, ensure, Error, Result};
+use anyhow::{bail, Error, Result};
 use aqueue::Actor;
 use futures_util::AsyncWriteExt;
 use log::*;
@@ -121,9 +121,9 @@ pub trait IWebSocketClient {
         &self,
         buff: B,
     ) -> Result<()>;
-    async fn send_ref<'a>(&'a self, buff: &'a [u8]) -> Result<usize>;
-    async fn send_all_ref<'a>(&'a self, buff: &'a [u8]) -> Result<()>;
-    async fn flush(&mut self) -> Result<()>;
+    async fn send_ref(&self, buff: &[u8]) -> Result<usize>;
+    async fn send_all_ref(&self, buff: &[u8]) -> Result<()>;
+    async fn flush(&self) -> Result<()>;
     async fn disconnect(&self) -> Result<()>;
     fn is_disconnect(&self) -> bool;
 }
@@ -153,25 +153,19 @@ impl IWebSocketClient for Actor<WebSocketClient> {
     }
 
     #[inline]
-    async fn send_ref<'a>(&'a self, buff: &'a [u8]) -> Result<usize> {
-        ensure!(!buff.is_empty(), "send buff is null");
-        unsafe {
-            self.inner_call_ref(|inner| async move { inner.get_mut().send(buff).await })
-                .await
-        }
+    async fn send_ref(&self, buff: &[u8]) -> Result<usize> {
+        self.inner_call(|inner| async move { inner.get_mut().send(buff).await })
+            .await
     }
 
     #[inline]
-    async fn send_all_ref<'a>(&'a self, buff: &'a [u8]) -> Result<()> {
-        ensure!(!buff.is_empty(), "send buff is null");
-        unsafe {
-            self.inner_call_ref(|inner| async move { inner.get_mut().send_all(buff).await })
-                .await
-        }
+    async fn send_all_ref(&self, buff: &[u8]) -> Result<()> {
+        self.inner_call(|inner| async move { inner.get_mut().send_all(buff).await })
+            .await
     }
 
     #[inline]
-    async fn flush(&mut self) -> Result<()> {
+    async fn flush(&self) -> Result<()> {
         self.inner_call(|inner| async move { inner.get_mut().flush().await })
             .await
     }
